@@ -1,0 +1,47 @@
+# NVIDIA Network Operator values for MI300x with Mellanox NICs
+# Adds toleration for amd.com/gpu=present:NoSchedule so NFD and SRIOV components
+# can schedule on AMD GPU (MI300x) nodes
+
+sriovNetworkOperator:
+  enabled: true
+
+nfd:
+  enabled: true
+
+# Tolerations for operator daemonsets - required for MI300x nodes with
+# taint: amd.com/gpu=present:NoSchedule
+operator:
+  tolerations:
+    - key: "node-role.kubernetes.io/master"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "node-role.kubernetes.io/control-plane"
+      operator: "Equal"
+      value: ""
+      effect: "NoSchedule"
+    - key: "nvidia.com/gpu"
+      operator: "Exists"
+      effect: "NoSchedule"
+    - key: "amd.com/gpu"
+      operator: "Equal"
+      value: "present"
+      effect: "NoSchedule"
+
+# NFD worker tolerations - ensures NFD runs on MI300x to discover Mellanox NICs
+node-feature-discovery:
+  worker:
+    tolerations:
+      - key: "node-role.kubernetes.io/master"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "node-role.kubernetes.io/control-plane"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "nvidia.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+      - key: "amd.com/gpu"
+        operator: "Equal"
+        value: "present"
+        effect: "NoSchedule"
