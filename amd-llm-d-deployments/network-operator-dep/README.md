@@ -4,12 +4,6 @@
 
 https://github.com/oracle-quickstart/oci-hpc-oke/tree/vf
 
-# Debug / fix in ROCSHMEM
-On each node, run this
-```bash
-echo 41 > /sys/class/infiniband/mlx5_0/tc/1/traffic_class
-```
-
 1. Install the **nvidia** network operator (Mellanox NICs on MI300X):
 ```bash
 helm repo add nvidia https://helm.ngc.nvidia.com/nvidia
@@ -108,3 +102,38 @@ kubectl delete namespace nvidia-network-operator
 | 4 | mi300x-network-pool-config.yaml | Pool config for rollout |
 | 5 | sriov.yaml | SRIOV network using the pool and config |
 | 6 | vfconfig.yaml | DaemonSet for VF configuration |
+
+## Notes, debug
+
+###  Debug / fix in ROCSHMEM
+On each node, run this to force traffic class to be 41 (prio0 -> RDMA). See [main readme](../README.md)
+```bash
+echo 41 > /sys/class/infiniband/mlx5_0/tc/1/traffic_class
+```
+
+In container:
+```bash
+ARG GFX_COMPILATION_ARCH="gfx942"
+ARG ROCSHMEM_BRANCH="feature/filter-nics"
+RUN --mount=type=cache,target=/root/.ccache \
+    git clone --no-checkout --filter=blob:none https://github.com/ROCm/rocm-systems.git && \
+    cd rocm-systems && \
+    git remote add abouteiller https://github.com/abouteiller/rocm-systems.git && \
+    git fetch abouteiller && \
+    git sparse-checkout set --cone projects/rocshmem && \
+    git checkout ${ROCSHMEM_BRANCH} && \
+    git  -c user.name="Builder" -c user.email="build@local.com" merge --no-edit abouteiller/bugfix/traffic-class && \
+    cd projects/rocshmem && \
+    mkdir -p rocshmem-build && \
+    cd rocshmem-build && \
+    ../scripts/build_configs/all_backends \
+        -DUSE_EXTERNAL_MPI=OFF \
+        -DGPU_TARGETS=$GFX_COMPILATION_ARCH
+
+# Environment variables used in app:
+    export ROCSHMEM_HEAP_SIZE=8589934592
+    export ROCSHMEM_MAX_NUM_CONTEXTS=64
+    export ROCSHMEM_BACKEND=gda
+    export ROCSHMEM_GDA_TRAFFIC_CLASS=41
+    export ROCSHMEM_HCA_LIST=^mlx5_1,mlx5_6
+```
