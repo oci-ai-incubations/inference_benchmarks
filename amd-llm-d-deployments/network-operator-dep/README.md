@@ -53,6 +53,22 @@ kubectl apply -f sriov.yaml
 kubectl apply -f vfconfig.yaml
 ```
 
+When this is completed, it may take a few minutes for the nodes to sync. Run this command:
+```bash
+kubectl get nodes -l 'amd.com/gpu=true' --sort-by=.status.capacity."amd\.com/gpu" -o=custom-columns='NODE:metadata.name,GPUs:status.capacity.amd\.com/gpu,RDMA-VFs:status.capacity.nvidia\.com/sriov-rdma-vf'
+
+NODE          GPUs   RDMA-VFs
+10.0.65.77    8      8
+10.0.66.42    8      8
+10.0.67.106   8      8
+10.0.69.254   8      8
+10.0.73.241   8      8
+10.0.73.254   8      8
+10.0.73.3     8      8
+10.0.74.185   8      8
+10.0.78.230   8      8
+```
+
 ---
 
 ## 2. Delete all resources
