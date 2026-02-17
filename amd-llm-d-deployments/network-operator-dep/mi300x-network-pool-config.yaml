@@ -1,0 +1,12 @@
+apiVersion: sriovnetwork.openshift.io/v1
+kind: SriovNetworkPoolConfig
+metadata:
+  name: sriov-single-node
+  namespace: nvidia-network-operator
+spec:
+  maxUnavailable: "1"
+  nodeSelector:
+    matchExpressions:
+    - key: sriov.oracle.com/target
+      operator: In
+      values: ["true"]

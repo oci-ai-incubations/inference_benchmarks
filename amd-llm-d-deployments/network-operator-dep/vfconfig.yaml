@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: vf-config
+  namespace: kube-system
+  labels:
+    app: vf-config
+spec:
+  selector:
+    matchLabels:
+      app: vf-config
+  template:
+    metadata:
+      labels:
+        app: vf-config
+    spec:
+      nodeSelector:
+        sriov.oracle.com/target: "true"
+      priorityClassName: system-node-critical
+      hostNetwork: true
+      hostPID: true
+      tolerations:
+        - operator: "Exists"
+      terminationGracePeriodSeconds: 5
+      volumes:
+        - name: host-root
+          hostPath:
+            path: "/"
+      containers:
+        - name: vf-config
+          image: iad.ocir.io/idxzjcdglx2s/vf-config:v6
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true
+          volumeMounts:
+            - name: host-root
+              mountPath: /host
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          command:
+            - /usr/local/bin/vf-config
+            - --num-vfs=1
+            - --host-root=/host
+            - --wait-for-oca
+            - --manage-services
+            - --set-netns-exclusive
+            - --restart-sriov
+            - --run-once
