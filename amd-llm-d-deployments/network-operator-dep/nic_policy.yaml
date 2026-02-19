@@ -3,6 +3,16 @@ kind: NicClusterPolicy
 metadata:
   name: nic-cluster-policy
 spec:
+  tolerations:
+    - key: "amd.com/gpu"
+      operator: "Equal"
+      value: "present"
+      effect: "NoSchedule"
+  deploymentTolerations:
+    - key: "amd.com/gpu"
+      operator: "Equal"
+      value: "present"
+      effect: "NoSchedule"
   nvIpam:
     image: nvidia-k8s-ipam
     repository: nvcr.io/nvidia/mellanox

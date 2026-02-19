@@ -44,10 +44,8 @@ spec:
               memory: 512Mi
           command:
             - /usr/local/bin/vf-config
-            - --num-vfs=1
             - --host-root=/host
             - --wait-for-oca
             - --manage-services
             - --set-netns-exclusive
-            - --restart-sriov
             - --run-once

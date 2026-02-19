@@ -1,0 +1,48 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-nic-resources
+  namespace: dk 
+  annotations:
+    k8s.v1.cni.cncf.io/networks: |
+      [
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net1"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net2"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net3"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net4"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net5"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net6"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net7"},
+        {"name":"sriov-rdma-vf","namespace":"default","interface":"net8"}
+      ]
+spec:
+  nodeSelector:
+    kubernetes.io/hostname: "10.0.66.42"
+  tolerations:
+    - operator: Exists
+  restartPolicy: Never
+  terminationGracePeriodSeconds: 1
+  containers:
+  - name: networking-debug-container
+    image: quay.io/rajjoshi/networking-debug-container:latest
+    imagePullPolicy: Always  # Always pull the latest image, even if tag is the same
+    resources:
+      limits:
+        nvidia.com/sriov-rdma-vf: 8
+      requests:
+        nvidia.com/sriov-rdma-vf: 8
+    # Access to InfiniBand devices
+    volumeMounts:
+    - name: dev-infiniband
+      mountPath: /dev/infiniband
+    
+    command: ["/bin/bash", "-c"]
+    args: 
+    - |
+      sleep infinity
+  
+  volumes:
+  - name: dev-infiniband
+    hostPath:
+      path: /dev/infiniband
+      type: Directory

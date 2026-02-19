@@ -8,6 +8,19 @@ sriovNetworkOperator:
 nfd:
   enabled: true
 
+tolerations:
+  - key: "amd.com/gpu"
+    operator: "Equal"
+    value: "present"
+    effect: "NoSchedule"
+
+secondaryNetwork:
+  multus:
+    tolerations:
+      - key: "amd.com/gpu"
+        operator: "Exists"
+        effect: "NoSchedule"
+
 # Tolerations for operator daemonsets - required for MI300x nodes with
 # taint: amd.com/gpu=present:NoSchedule
 operator:

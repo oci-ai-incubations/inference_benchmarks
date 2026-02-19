@@ -5,6 +5,7 @@ metadata:
   namespace: nvidia-network-operator
 spec:
   maxUnavailable: "1"
+  rdmaMode: exclusive
   nodeSelector:
     matchExpressions:
     - key: sriov.oracle.com/target
