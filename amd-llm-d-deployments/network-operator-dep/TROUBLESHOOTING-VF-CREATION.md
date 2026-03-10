@@ -205,8 +205,55 @@ To prevent this issue in the future:
    - VFs are created (`cat /sys/bus/pci/devices/*/sriov_numvfs`)
    - Node shows correct capacity and allocatable resources
 
+## VF Shows DOWN in `rdma link` on Host
+
+When `rdma link` on the host shows VFs (e.g. mlx5_10–17) as `state DOWN physical_state DISABLED`:
+
+1. **VFs on host are often DOWN when idle** — Unassigned VFs sit on the host; they are brought UP when moved into a pod by the SR-IOV CNI.
+2. **VFs in pods are in the pod's netns** — Once attached to a pod, a VF is moved to the pod's network namespace and no longer appears in `rdma link` on the host. Check RDMA state from inside the pod instead.
+3. **Run the investigation script** for a specific pod:
+   ```bash
+   ./investigate-vf-down.sh
+   ```
+   Or adapt it for your pod/namespace. Key checks:
+   - `k8s.v1.cni.cncf.io/networks-status` — Did Multus attach the interfaces?
+   - `PCIDEVICE_NVIDIA_COM_SRIOV_RDMA_VF` — Which VF BDFs were assigned?
+   - `rdma link` and `ip link` **inside the pod** — Are VFs ACTIVE there?
+
+## NV-IPAM gRPC Timeout (Pod Stuck in Init, `networks-status` Empty)
+
+**Symptom:** Pod stuck in `Init:0/1`, `k8s.v1.cni.cncf.io/networks-status` is empty, events show:
+
+```
+Failed to create pod sandbox: ... error adding container to network "sriov-rdma-vf": 
+plugin type="sriov" failed (add): failed to set up IPAM plugin type "nv-ipam" from the 
+device "rdma0": grpc call failed: rpc error: code = DeadlineExceeded desc = context 
+deadline exceeded while waiting for connections to become ready
+```
+
+**Root cause:** The NVIDIA IPAM (nv-ipam) gRPC service is unreachable or not responding in time when the SR-IOV CNI tries to allocate an IP for the VF.
+
+**Checks:**
+
+1. **NV-IPAM daemon running:**
+   ```bash
+   kubectl get pods -n nvidia-network-operator -l app=nv-ipam -o wide
+   # Or check for ipam daemonset
+   kubectl get ds -n nvidia-network-operator | grep -i ipam
+   ```
+
+2. **IP pool has addresses:** `kubectl get ippool -n nvidia-network-operator`
+
+3. **NV-IPAM reachable from GPU nodes:** The IPAM typically runs as a daemonset or deployment. Ensure it's scheduled on or reachable from nodes where SR-IOV pods run. Check if GPU nodes have the required tolerations.
+
+4. **Increase CNI timeout:** If the gRPC call is slow, the default timeout may be too short. Check Multus/CNI configuration for timeout settings.
+
+5. **Network policy / calico:** Ensure no network policy is blocking pod-to-IPAM traffic.
+
 ## Related Files
 
 - `network-operator-values.yaml` - Helm values for network operator
 - `bm.gpu.mi300x-sriov-policy.yaml` - SRIOV node policy defining VF requirements
 - `vfconfig.yaml` - VF configuration daemonset
+- `ippool.yaml` - NV-IPAM IP pool configuration
+- `investigate-vf-down.sh` - Script to debug VF state for a specific pod
