@@ -32,6 +32,7 @@ export RELEASE="25.05"
 export WORKDIR=$PWD
 docker run -it --net=host --gpus=all -v $WORKDIR:/workdir nvcr.io/nvidia/tritonserver:${RELEASE}-py3-sdk
 
+cd /workdir
 # Now inside container
 pip install aiperf -t pythonpath
 
@@ -89,6 +90,8 @@ Log File: /workdir/artifacts/openai_gpt-oss-120b-openai-chat-concurrency10/logs/
 ```
 
 ## Run script for sweeps
+
+In the same `/workdir` create a script called `sweeps.sh` with the following content:
 ```bash
 declare -A useCases
 
@@ -144,4 +147,10 @@ runBenchmark() {
 for description in "${!useCases[@]}"; do
    runBenchmark "$description"
 done
+```
+
+Then run all the use cases!
+```bash
+chmod +x sweeps.sh
+./sweeps.sh
 ```
