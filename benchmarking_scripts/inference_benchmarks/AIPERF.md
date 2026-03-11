@@ -102,11 +102,9 @@ useCases["heavyGeneration"]="128/2048"
 useCases["summarization"]="2048/128"
 useCases["largeBalanced"]="2048/2048"
 useCases["longPrompt1"]="2048/4096"
-useCases["longPrompt2"]="4096/2048"
-useCases["longerPrompt1"]="8192/2048"
-useCases["longestPrompt1"]="16384/2048"
-useCases["longestGen1"]="2048/16384"
-useCases["longerGen1"]="2048/8192"
+useCases["longPrompt2"]="4096/1024"
+useCases["longerPrompt1"]="1024/4096"
+
 
 # Function to execute AIPerf with the input/output lengths as arguments
 runBenchmark() {
