@@ -101,9 +101,8 @@ useCases["Text classification"]="200/5"
 useCases["heavyGeneration"]="128/2048"
 useCases["summarization"]="2048/128"
 useCases["largeBalanced"]="2048/2048"
-useCases["longPrompt1"]="2048/4096"
+useCases["longPrompt1"]="1024/4096"
 useCases["longPrompt2"]="4096/1024"
-useCases["longerPrompt1"]="1024/4096"
 
 
 # Function to execute AIPerf with the input/output lengths as arguments
