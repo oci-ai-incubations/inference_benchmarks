@@ -122,7 +122,7 @@ runBenchmark() {
        local INPUT_SEQUENCE_STD=0
        local OUTPUT_SEQUENCE_LENGTH=$outputLength
        local CONCURRENCY=$concurrency
-       local REQUEST_COUNT=$(($CONCURRENCY * 3))
+       local REQUEST_COUNT=$(($CONCURRENCY * 100))
        local MODEL=openai/gpt-oss-120b
 
        aiperf profile \
