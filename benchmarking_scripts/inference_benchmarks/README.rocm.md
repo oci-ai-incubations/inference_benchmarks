@@ -3,7 +3,6 @@
 Testing the following models with each subsection below:
 - gpt-oss-120b
 - QWEN3 32B
-- DeepSeek R1 671B FP4
 - Llama3.1-70B
 
 Before anything else, ensure your node is setup correctly. Use the following image below.
