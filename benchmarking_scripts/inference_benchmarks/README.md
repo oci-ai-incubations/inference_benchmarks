@@ -1,5 +1,7 @@
 # Setup and run
 
+https://nvidia.github.io/TensorRT-LLM/deployment-guide/deployment-guide-for-gpt-oss-on-trtllm.html
+
 ## Download the model
 ```bash
 python3 -m venv venv
