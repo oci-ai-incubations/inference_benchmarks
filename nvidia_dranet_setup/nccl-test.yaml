@@ -1,0 +1,196 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: nccl-test
+  namespace: kube-system
+spec:
+  selector:
+    job-name: nccl-test
+  clusterIP: None
+---
+apiVersion: resource.k8s.io/v1
+kind: ResourceClaimTemplate
+metadata:
+  name: nccl-gpu-nic
+  namespace: kube-system
+spec:
+  spec:
+    devices:
+      requests:
+      - name: gpu
+        exactly:
+          deviceClassName: gpu.nvidia.com
+          count: 1
+      - name: nic
+        exactly:
+          deviceClassName: dranet
+          count: 1
+          selectors:
+          - cel:
+              expression: device.attributes["dra.net"].rdma == true
+      constraints:
+      - matchAttribute: "resource.kubernetes.io/pcieRoot"
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: nccl-test
+  namespace: kube-system
+spec:
+  backoffLimit: 0
+  parallelism: 2
+  completions: 2
+  completionMode: Indexed
+  template:
+    spec:
+      nodeSelector:
+        nvidia.com/dra-kubelet-plugin: "true"
+      tolerations:
+      - operator: Exists
+        effect: NoSchedule
+      subdomain: nccl-test
+      restartPolicy: Never
+      containers:
+      - name: nccl
+        image: nvcr.io/nvidia/pytorch:24.08-py3
+        securityContext:
+          capabilities:
+            add: ["IPC_LOCK", "NET_RAW"]
+        env:
+        - name: NCCL_DEBUG
+          value: "INFO"
+        - name: NCCL_IB_DISABLE
+          value: "0"
+        - name: NCCL_NET_GDR_LEVEL
+          value: "PIX"
+        - name: NCCL_IB_QPS_PER_CONNECTION
+          value: "4"
+        - name: NCCL_SOCKET_IFNAME
+          value: "eth0"
+        - name: MASTER_ADDR
+          value: "nccl-test-0.nccl-test.kube-system.svc.cluster.local"
+        - name: MASTER_PORT
+          value: "29500"
+        - name: WORLD_SIZE
+          value: "2"
+        - name: RANK
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.annotations['batch.kubernetes.io/job-completion-index']
+        volumeMounts:
+        - name: shared-memory
+          mountPath: /dev/shm
+        command:
+        - bash
+        - -c
+        - |
+          set -e
+
+          echo "=== NCCL GPU-NIC Alignment Bandwidth Test ==="
+          echo "Node: $(hostname) | Rank: ${RANK} | Master: ${MASTER_ADDR}"
+          echo ""
+
+          echo "--- GPU Info ---"
+          nvidia-smi -L
+          echo ""
+
+          echo "--- RDMA Devices ---"
+          ls /sys/class/infiniband/ 2>/dev/null || echo "No IB devices in container"
+          echo ""
+
+          echo "--- Network Interfaces ---"
+          ip -br addr show 2>/dev/null || true
+          echo ""
+
+          # Wait for DNS resolution of master
+          echo "Waiting for master DNS..."
+          for i in $(seq 1 120); do
+            if getent hosts ${MASTER_ADDR} > /dev/null 2>&1; then
+              echo "Master resolved after ${i}s"
+              break
+            fi
+            sleep 1
+          done
+          sleep 5
+
+          python3 -c "
+          import torch
+          import torch.distributed as dist
+          import os, time
+
+          rank = int(os.environ['RANK'])
+          world_size = int(os.environ['WORLD_SIZE'])
+
+          print(f'Initializing rank {rank}/{world_size} with NCCL backend...')
+          dist.init_process_group(backend='nccl', init_method='env://',
+                                  rank=rank, world_size=world_size)
+
+          device = torch.device('cuda:0')
+          print(f'Rank {rank}: Using GPU {torch.cuda.get_device_name(0)}')
+
+          # Warmup
+          print(f'Rank {rank}: Warming up...')
+          for _ in range(10):
+              t = torch.randn(1024*1024, device=device)
+              dist.all_reduce(t)
+          torch.cuda.synchronize()
+          dist.barrier()
+
+          # Benchmark all_reduce at various sizes
+          if rank == 0:
+              print()
+              hdr = '{:>14s} | {:>12s} | {:>14s} | {:>14s}'.format('Size', 'Time (us)', 'AlgoBW (GB/s)', 'BusBW (GB/s)')
+              print(hdr)
+              print('-' * 65)
+
+          iters = 50
+          sizes_bytes = [8, 256, 8192, 262144, 1048576, 4194304,
+                         16777216, 67108864, 268435456, 536870912, 1073741824]
+
+          for nbytes in sizes_bytes:
+              nelem = nbytes // 4  # float32
+              tensor = torch.randn(nelem, device=device, dtype=torch.float32)
+              torch.cuda.synchronize()
+              dist.barrier()
+
+              # Timed iterations
+              start = time.perf_counter()
+              for _ in range(iters):
+                  dist.all_reduce(tensor)
+              torch.cuda.synchronize()
+              elapsed = time.perf_counter() - start
+
+              avg_us = (elapsed / iters) * 1e6
+              # algobw = data_size / time
+              algobw = nbytes / (elapsed / iters) / 1e9
+              # busbw for all_reduce with 2 ranks: busbw = algobw * 2*(n-1)/n = algobw * 1
+              busbw = algobw * (2 * (world_size - 1)) / world_size
+
+              if rank == 0:
+                  label = f'{nbytes}' if nbytes < 1024 else (
+                      f'{nbytes//1024}K' if nbytes < 1048576 else (
+                      f'{nbytes//1048576}M' if nbytes < 1073741824 else
+                      f'{nbytes//1073741824}G'))
+                  print(f'{label:>14s} | {avg_us:>12.1f} | {algobw:>14.2f} | {busbw:>14.2f}')
+
+          dist.barrier()
+          if rank == 0:
+              print()
+              print('=== NCCL Bandwidth Test Complete ===')
+              print('BusBW is the key metric - should approach line rate of CX-7 (~200 Gb/s = ~25 GB/s per port)')
+
+          dist.destroy_process_group()
+          "
+
+          echo "Done."
+        resources:
+          claims:
+          - name: gpu-nic
+      volumes:
+      - name: shared-memory
+        emptyDir:
+          medium: Memory
+          sizeLimit: 64Gi
+      resourceClaims:
+      - name: gpu-nic
+        resourceClaimTemplateName: nccl-gpu-nic

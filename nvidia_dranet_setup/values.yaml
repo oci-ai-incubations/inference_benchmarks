@@ -1,0 +1,16 @@
+nvidiaDriverRoot: /
+gpuResourcesEnabledOverride: true
+logVerbosity: "4"
+
+resources:
+  gpus:
+    enabled: true
+  computeDomains:
+    enabled: false
+
+kubeletPlugin:
+  nodeSelector:
+    nvidia.com/dra-kubelet-plugin: "true"
+  tolerations:
+  - operator: Exists
+    effect: NoSchedule

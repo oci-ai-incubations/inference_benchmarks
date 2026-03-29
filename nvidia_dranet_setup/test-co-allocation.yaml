@@ -1,0 +1,38 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: test-gpu-nic-alignment
+  namespace: kube-system
+spec:
+  nodeSelector:
+    nvidia.com/dra-kubelet-plugin: "true"
+  tolerations:
+  - operator: Exists
+    effect: NoSchedule
+  restartPolicy: OnFailure
+  containers:
+  - name: test
+    image: docker.io/library/ubuntu:22.04
+    command:
+    - bash
+    - -c
+    - |
+      echo "=== GPU-NIC Co-allocation Test ==="
+      echo ""
+      echo "--- Checking GPU visibility ---"
+      ls -la /dev/nvidia* 2>/dev/null || echo "No /dev/nvidia* devices found"
+      echo ""
+      echo "--- Checking network interfaces ---"
+      ip link show 2>/dev/null || echo "ip command not available"
+      echo ""
+      echo "--- Environment variables ---"
+      env | grep -i -E "nvidia|gpu|dra|nic|rdma|pci" | sort
+      echo ""
+      echo "--- Sleeping to allow inspection ---"
+      sleep 3600
+    resources:
+      claims:
+      - name: gpu-nic
+  resourceClaims:
+  - name: gpu-nic
+    resourceClaimTemplateName: gpu-nic-aligned
